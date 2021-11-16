@@ -1,20 +1,21 @@
 package com.linkedin.batch;
 
-import java.time.LocalDateTime;
+import java.util.Random;
 
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.job.flow.FlowExecutionStatus;
 import org.springframework.batch.core.job.flow.JobExecutionDecider;
 
-public class DeliveryDecider implements JobExecutionDecider {
+public class ReceiptDecider implements JobExecutionDecider {
 
 	@Override
 	public FlowExecutionStatus decide(JobExecution jobExecution, StepExecution stepExecution) {
-	
-		String result = LocalDateTime.now().getHour() > 12 ? "PRESENT":"NOT PRESENT";
-		System.out.println("Decide result is:"+result);
-		return new FlowExecutionStatus(result);
+		
+		String exitCode = new Random().nextFloat() < .70f ? "CORRECT" : "INCORRECT";
+			
+		System.out.println("Item Delivered is "+exitCode);
+		return new FlowExecutionStatus(exitCode);
 	}
 
 }
