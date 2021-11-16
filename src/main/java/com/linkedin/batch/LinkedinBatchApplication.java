@@ -27,12 +27,27 @@ public class LinkedinBatchApplication {
 	
 	@Bean
 	public Job deliverPackageJob() {
-		return this.jobBuilderFactory.get("deliverPackageJob").start(packageItemStep())
+		return this.jobBuilderFactory.get("deliverPackageJob")
+					.start(packageItemStep())
 					.next(driveToAddressStep())
-					.next(givePackageToCustomerStep())
+					.on("FAILED").to(storePackageStep())
+					.from(driveToAddressStep())
+					.on("*").to(givePackageToCustomerStep())
+					.end()
 					.build();
 	}
-
+	
+	@Bean
+	public Step storePackageStep() {
+		return this.sBuilderFactory.get("storePackageStep").tasklet(new Tasklet() {
+			
+			@Override
+			public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
+				System.out.println("Stroing the package while customer address is located");
+				return RepeatStatus.FINISHED;
+			}
+		}).build();
+	}
 	@Bean
 	public Step givePackageToCustomerStep() {
 		return this.sBuilderFactory.get("givePackageToCustomerStep").tasklet(new Tasklet() {
