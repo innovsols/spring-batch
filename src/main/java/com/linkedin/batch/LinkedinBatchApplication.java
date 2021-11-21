@@ -17,7 +17,6 @@ import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.autoconfigure.info.ProjectInfoProperties.Build;
 import org.springframework.context.annotation.Bean;
 
 @SpringBootApplication
@@ -31,6 +30,15 @@ public class LinkedinBatchApplication {
 	public StepBuilderFactory sBuilderFactory;
 	
 	@Bean
+	public Job deliverPackageJob() {
+		return this.jobBuilderFactory.get("deliverPackageJob")
+					.start(packageItemStep())
+					.on("*").to(deliveryFlow())
+					.end()
+					.build();
+	}
+	
+	@Bean
 	public JobExecutionDecider decider() {
 		return new DeliveryDecider();
 	}
@@ -40,17 +48,6 @@ public class LinkedinBatchApplication {
 		return new ReceiptDecider();
 	}
 	
-	
-	@Bean
-	public Job deliverPackageJob() {
-		return this.jobBuilderFactory.get("deliverPackageJob")
-					.start(packageItemStep())
-					.on("*").to(deliveryFlow())
-					.end()
-					.build();
-	}
-	
-
 	
 	@Bean
 	public Step thankCustomerStep() {
@@ -201,18 +198,19 @@ public class LinkedinBatchApplication {
         		.build();
     }
     
-    @Bean
-    public Flow deliveryFlow() {
-    	return new FlowBuilder<SimpleFlow>("deliveryFlow").start(driveToAddressStep())
-				.on("FAILED").stop()
+	@Bean
+	public Flow deliveryFlow() {
+		return new FlowBuilder<SimpleFlow>("deliveryFlow").start(driveToAddressStep())
+					.on("FAILED").fail()
 				.from(driveToAddressStep())
-				.on("*").to(decider())
-					.on("PRESENT").to(givePackageToCustomerStep())
-						.next(receiptDecider()).on("CORRECT").to(thankCustomerStep())
-						.from(receiptDecider()).on("INCORRECT").to(refundStep())
-				.from(decider())
-					.on("NOT PRESENT").to(leaveAtDoorStep()).build();
-    }
+					.on("*").to(decider())
+						.on("PRESENT").to(givePackageToCustomerStep())
+							.next(receiptDecider()).on("CORRECT").to(thankCustomerStep())
+							.from(receiptDecider()).on("INCORRECT").to(refundStep())
+					.from(decider())
+						.on("NOT_PRESENT").to(leaveAtDoorStep()).build();
+
+	}
 
 	public static void main(String[] args) {
 		SpringApplication.run(LinkedinBatchApplication.class, args);
