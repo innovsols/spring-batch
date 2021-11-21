@@ -211,7 +211,30 @@ public class LinkedinBatchApplication {
 						.on("NOT_PRESENT").to(leaveAtDoorStep()).build();
 
 	}
+	
+	@Bean
+	public Step nestedBillingJobStep() {
+		return this.sBuilderFactory.get("nestedBillingJobStep").job(billingJob()).build();
+	}
 
+	@Bean
+	public Step sendInvoiceStep() {
+		return this.sBuilderFactory.get("invoiceStep").tasklet(new Tasklet() {
+			
+			@Override
+			public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
+				System.out.println("Invoice is sent to the customer");
+				return RepeatStatus.FINISHED; 
+			}
+		}).build();
+
+	}
+
+	@Bean
+	public Job billingJob() {
+		return this.jobBuilderFactory.get("billingJob").start(sendInvoiceStep()).build();
+	}
+	
 	public static void main(String[] args) {
 		SpringApplication.run(LinkedinBatchApplication.class, args);
 	}
