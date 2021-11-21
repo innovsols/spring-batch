@@ -7,7 +7,10 @@ import org.springframework.batch.core.StepExecutionListener;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.job.builder.FlowBuilder;
+import org.springframework.batch.core.job.flow.Flow;
 import org.springframework.batch.core.job.flow.JobExecutionDecider;
+import org.springframework.batch.core.job.flow.support.SimpleFlow;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
@@ -28,23 +31,6 @@ public class LinkedinBatchApplication {
 	public StepBuilderFactory sBuilderFactory;
 	
 	@Bean
-	public Job deliverPackageJob() {
-		return this.jobBuilderFactory.get("deliverPackageJob")
-					.start(packageItemStep())
-					.next(driveToAddressStep())
-					.on("FAILED").stop()
-					.from(driveToAddressStep())
-					.on("*").to(decider())
-						.on("PRESENT").to(givePackageToCustomerStep())
-							.next(receiptDecider()).on("CORRECT").to(thankCustomerStep())
-							.from(receiptDecider()).on("INCORRECT").to(refundStep())
-					.from(decider())
-						.on("NOT PRESENT").to(leaveAtDoorStep())
-					.end()
-					.build();
-	}
-	
-	@Bean
 	public JobExecutionDecider decider() {
 		return new DeliveryDecider();
 	}
@@ -54,6 +40,17 @@ public class LinkedinBatchApplication {
 		return new ReceiptDecider();
 	}
 	
+	
+	@Bean
+	public Job deliverPackageJob() {
+		return this.jobBuilderFactory.get("deliverPackageJob")
+					.start(packageItemStep())
+					.on("*").to(deliveryFlow())
+					.end()
+					.build();
+	}
+	
+
 	
 	@Bean
 	public Step thankCustomerStep() {
@@ -199,8 +196,22 @@ public class LinkedinBatchApplication {
         			.on("TRIM REQUIRED").to(removeThornsStep()).next(arrangeFlowersStep())
         		.from(selectFlowersStep())
         			.on("NO TRIM REQUIRED").to(arrangeFlowersStep())
+        		.from(arrangeFlowersStep()).on("*").to(deliveryFlow())
         		.end()
         		.build();
+    }
+    
+    @Bean
+    public Flow deliveryFlow() {
+    	return new FlowBuilder<SimpleFlow>("deliveryFlow").start(driveToAddressStep())
+				.on("FAILED").stop()
+				.from(driveToAddressStep())
+				.on("*").to(decider())
+					.on("PRESENT").to(givePackageToCustomerStep())
+						.next(receiptDecider()).on("CORRECT").to(thankCustomerStep())
+						.from(receiptDecider()).on("INCORRECT").to(refundStep())
+				.from(decider())
+					.on("NOT PRESENT").to(leaveAtDoorStep()).build();
     }
 
 	public static void main(String[] args) {
