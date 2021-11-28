@@ -32,7 +32,7 @@ import org.springframework.core.io.FileSystemResource;
 @EnableBatchProcessing
 public class LinkedinBatchApplication {
 	
-	public static String[] tokens = new String[] {"order_id", "first_name", "last_name", "email", "cost", "item_id", "item_name", "ship_date"};
+	public static String[] names = new String[] {"orderId", "firstName", "lastName", "email", "cost", "itemId","itemName", "shipDate"};
 	
 	public static String ORDER_SQL = "select order_id, first_name, last_name, "
 			+ "email, cost, item_id, item_name, ship_date "
@@ -52,26 +52,25 @@ public class LinkedinBatchApplication {
 //		return new SimpleItemReader();
 //	}
 	
-	@Bean
-	public PagingQueryProvider queryProvider() throws Exception {
-		SqlPagingQueryProviderFactoryBean factoryBean = new SqlPagingQueryProviderFactoryBean();
-		
-		factoryBean.setSelectClause("select order_id, first_name, last_name, email, cost, item_id, item_name, ship_date ");
-		factoryBean.setFromClause("from SHIPPED_ORDER");
-		factoryBean.setSortKey("order_id");
-		factoryBean.setDataSource(dataSource);
-		return factoryBean.getObject();
-	}
+//	@Bean
+//	public PagingQueryProvider queryProvider() throws Exception {
+//		SqlPagingQueryProviderFactoryBean factoryBean = new SqlPagingQueryProviderFactoryBean();
+//		
+//		factoryBean.setSelectClause("select order_id, first_name, last_name, email, cost, item_id, item_name, ship_date ");
+//		factoryBean.setFromClause("from SHIPPED_ORDER");
+//		factoryBean.setSortKey("order_id");
+//		factoryBean.setDataSource(dataSource);
+//		return factoryBean.getObject();
+//	}
 	
 	public ItemReader<Order> itemReader() throws Exception{
 	
 		
-		return new JdbcPagingItemReaderBuilder<Order>()
+		return new JdbcCursorItemReaderBuilder<Order>()
 				.dataSource(dataSource)
-				.name("jdbcPagingItemReader")
-				.queryProvider(queryProvider())
+				.name("jdbcCursorItemReader")
+				.sql(ORDER_SQL)
 				.rowMapper(new OrderRowMapper())
-				.pageSize(10)
 				.build();
 	}
 
@@ -83,7 +82,7 @@ public class LinkedinBatchApplication {
 		dLineAggregator.setDelimiter(",");
 		
 		BeanWrapperFieldExtractor<Order> fieldExtractor = new BeanWrapperFieldExtractor<Order>();
-		fieldExtractor.setNames(tokens);
+		fieldExtractor.setNames(names);
 		
 		dLineAggregator.setFieldExtractor(fieldExtractor);
 		
