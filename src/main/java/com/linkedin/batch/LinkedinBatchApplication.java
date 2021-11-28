@@ -93,10 +93,15 @@ public class LinkedinBatchApplication {
 	}
 	
 	@Bean
-	public ItemWriter<Order> itemWriter() {
+	public ItemProcessor<Order, TrackedOrder> trackedOrderItemProcessor() {
+	return new TrackedOrderItemProcessor();
+	}
+	
+	@Bean
+	public ItemWriter<TrackedOrder> itemWriter() {
 		
-		return new JsonFileItemWriterBuilder<Order>()
-				.jsonObjectMarshaller(new JacksonJsonObjectMarshaller<Order>())
+		return new JsonFileItemWriterBuilder<TrackedOrder>()
+				.jsonObjectMarshaller(new JacksonJsonObjectMarshaller<TrackedOrder>())
 				.resource(new FileSystemResource("C:\\Gorakh\\Workspaces\\eclipse-workspace\\data\\output\\order_output.json"))
 				.name("jsonItemWriter")
 				.build();
@@ -106,15 +111,11 @@ public class LinkedinBatchApplication {
 	@Bean
 	public Step chunkBasedStep() throws Exception {
 		return this.stepBuilderFactory.get("chunkBasedStep")
-				.<Order,Order>chunk(10)
+				.<Order,TrackedOrder>chunk(10)
 				.reader(itemReader())
-				.processor(orderValidatingItemProcessor())
+				.processor(trackedOrderItemProcessor())
 				.writer(itemWriter()).build();
 	}
-	
-
-
-
 
 	@Bean
 	public Job job() throws Exception {
