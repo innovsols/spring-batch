@@ -10,30 +10,18 @@ import org.springframework.batch.core.configuration.annotation.StepBuilderFactor
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.database.JdbcCursorItemReader;
 import org.springframework.batch.item.database.PagingQueryProvider;
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
-import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.database.builder.JdbcPagingItemReaderBuilder;
 import org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean;
-import org.springframework.batch.item.file.FlatFileItemReader;
-import org.springframework.batch.item.file.FlatFileItemWriter;
-import org.springframework.batch.item.file.LineMapper;
-import org.springframework.batch.item.file.mapping.DefaultLineMapper;
-import org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor;
-import org.springframework.batch.item.file.transform.DelimitedLineAggregator;
-import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
-import org.springframework.batch.item.json.JacksonJsonObjectMarshaller;
-import org.springframework.batch.item.json.JsonFileItemWriter;
-import org.springframework.batch.item.json.builder.JsonFileItemWriterBuilder;
 import org.springframework.batch.item.support.builder.CompositeItemProcessorBuilder;
 import org.springframework.batch.item.validator.BeanValidatingItemProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
-import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 @SpringBootApplication
 @EnableBatchProcessing
@@ -45,10 +33,13 @@ public class LinkedinBatchApplication {
 			+ "email, cost, item_id, item_name, ship_date "
 			+ "from SHIPPED_ORDER order by order_id";
 	
-	public static String INSERT_ORDER_SQL = "insert into "
-			+ "SHIPPED_ORDER_OUTPUT(order_id, first_name, last_name, email, item_id, item_name, cost, ship_date)"
-			+ " values(:orderId, :firstName, :lastName, :email, :itemId, :itemName, :cost, :shipDate)";
+//	public static String INSERT_ORDER_SQL = "insert into "
+//			+ "SHIPPED_ORDER_OUTPUT(order_id, first_name, last_name, email, item_id, item_name, cost, ship_date)"
+//			+ " values(:orderId, :firstName, :lastName, :email, :itemId, :itemName, :cost, :shipDate)";
 	
+	public static String INSERT_ORDER_SQL = "insert into "
+			+ "TRACKED_ORDER(order_id, first_name, last_name, email, item_id, item_name, cost, ship_date, tracking_number, free_shipping)"
+			+ " values(:orderId,:firstName,:lastName,:email,:itemId,:itemName,:cost,:shipDate,:trackingNumber, :freeShipping)";
 	@Autowired
 	public JobBuilderFactory jobBuilderFactory;
 	
@@ -58,29 +49,25 @@ public class LinkedinBatchApplication {
 	@Autowired
 	public DataSource dataSource;
 	
-
-//	public ItemReader<String> itemReader(){
-//		return new SimpleItemReader();
-//	}
+	@Bean
+	public PagingQueryProvider queryProvider() throws Exception {
+		SqlPagingQueryProviderFactoryBean factory = new SqlPagingQueryProviderFactoryBean();
+		
+		factory.setSelectClause("select order_id, first_name, last_name, email, cost, item_id, item_name, ship_date");
+		factory.setFromClause("from SHIPPED_ORDER");
+		factory.setSortKey("order_id");
+		factory.setDataSource(dataSource);
+		return factory.getObject();
+	}
 	
-//	@Bean
-//	public PagingQueryProvider queryProvider() throws Exception {
-//		SqlPagingQueryProviderFactoryBean factoryBean = new SqlPagingQueryProviderFactoryBean();
-//		
-//		factoryBean.setSelectClause("select order_id, first_name, last_name, email, cost, item_id, item_name, ship_date ");
-//		factoryBean.setFromClause("from SHIPPED_ORDER");
-//		factoryBean.setSortKey("order_id");
-//		factoryBean.setDataSource(dataSource);
-//		return factoryBean.getObject();
-//	}
-	
+	@Bean
 	public ItemReader<Order> itemReader() throws Exception{
 	
 		
-		return new JdbcCursorItemReaderBuilder<Order>()
+		return new JdbcPagingItemReaderBuilder<Order>()
 				.dataSource(dataSource)
 				.name("jdbcCursorItemReader")
-				.sql(ORDER_SQL)
+				.queryProvider(queryProvider())
 				.rowMapper(new OrderRowMapper())
 				.build();
 	}
@@ -112,12 +99,28 @@ public class LinkedinBatchApplication {
 	@Bean
 	public ItemWriter<TrackedOrder> itemWriter() {
 		
-		return new JsonFileItemWriterBuilder<TrackedOrder>()
-				.jsonObjectMarshaller(new JacksonJsonObjectMarshaller<TrackedOrder>())
-				.resource(new FileSystemResource("C:\\Gorakh\\Workspaces\\eclipse-workspace\\data\\output\\order_output.json"))
-				.name("jsonItemWriter")
+//		return new JsonFileItemWriterBuilder<TrackedOrder>()
+//				.jsonObjectMarshaller(new JacksonJsonObjectMarshaller<TrackedOrder>())
+//				.resource(new FileSystemResource("C:\\Gorakh\\Workspaces\\eclipse-workspace\\data\\output\\order_output.json"))
+//				.name("jsonItemWriter")
+//				.build();
+		
+		//Multi-threaded implementation of ItemWriter 
+		return new JdbcBatchItemWriterBuilder<TrackedOrder>()
+				.dataSource(dataSource)
+				.sql(INSERT_ORDER_SQL)
+				.beanMapped()
 				.build();
 	
+	}
+	
+	// Returns the task executor
+	@Bean
+	public TaskExecutor taskExecutor() {
+		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+		executor.setCorePoolSize(2);
+		executor.setMaxPoolSize(10);
+		return executor;
 	}
 
 	@Bean
@@ -130,7 +133,9 @@ public class LinkedinBatchApplication {
 				.retry(OrderProcessingException.class)
 				.retryLimit(3)
 				.listener(new CustomRetryListener())
-				.writer(itemWriter()).build();
+				.writer(itemWriter())
+				.taskExecutor(taskExecutor())
+				.build();
 	}
 
 
