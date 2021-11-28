@@ -10,8 +10,17 @@ public class TrackedOrderItemProcessor implements ItemProcessor<Order, TrackedOr
 	public TrackedOrder process(Order item) throws Exception {
 		
 		TrackedOrder trackedOrder = new TrackedOrder(item);
-		trackedOrder.setTrackingNumber(UUID.randomUUID().toString());
+		trackedOrder.setTrackingNumber(getTrackingNumber());
 		return trackedOrder;
+	}
+	
+	private String getTrackingNumber() throws OrderProcessingException {
+		
+		if(Math.random() < .01) {
+			throw new OrderProcessingException();
+		}
+
+		return UUID.randomUUID().toString(); 
 	}
 
 }

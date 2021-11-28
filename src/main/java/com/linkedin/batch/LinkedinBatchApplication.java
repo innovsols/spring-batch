@@ -126,6 +126,10 @@ public class LinkedinBatchApplication {
 				.<Order,TrackedOrder>chunk(10)
 				.reader(itemReader())
 				.processor(compositeItemProcessor())
+				.faultTolerant()
+				.skip(OrderProcessingException.class)
+				.skipLimit(5)
+				.listener(new CustomSkipListener())
 				.writer(itemWriter()).build();
 	}
 
