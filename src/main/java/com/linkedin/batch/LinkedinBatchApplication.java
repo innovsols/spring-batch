@@ -2,6 +2,8 @@ package com.linkedin.batch;
 
 import java.util.List;
 
+import javax.sql.DataSource;
+
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
@@ -9,6 +11,8 @@ import org.springframework.batch.core.configuration.annotation.JobBuilderFactory
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.database.JdbcCursorItemReader;
+import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.LineMapper;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
@@ -26,11 +30,18 @@ public class LinkedinBatchApplication {
 	
 	public static String[] tokens = new String[] {"order_id", "first_name", "last_name", "email", "cost", "item_id", "item_name", "ship_date"};
 	
+	public static String ORDER_SQL = "select order_id, first_name, last_name, "
+			+ "email, cost, item_id, item_name, ship_date "
+			+ "from SHIPPED_ORDER order by order_id";
+	
 	@Autowired
 	public JobBuilderFactory jobBuilderFactory;
 	
 	@Autowired
 	public StepBuilderFactory stepBuilderFactory;
+	
+	@Autowired
+	public DataSource dataSource;
 	
 	@Bean
 //	public ItemReader<String> itemReader(){
@@ -38,21 +49,14 @@ public class LinkedinBatchApplication {
 //	}
 	
 	public ItemReader<Order> itemReader(){
-		FlatFileItemReader<Order> orderItemReader = new FlatFileItemReader<Order>();
-		orderItemReader.setLinesToSkip(1);
-		orderItemReader.setResource(new FileSystemResource("C:\\Gorakh\\Workspaces\\eclipse-workspace\\data\\shipped_orders.csv"));
+	
 		
-		DefaultLineMapper<Order> defaultLineMapper = new DefaultLineMapper<Order>();
-		DelimitedLineTokenizer tokenizer = new DelimitedLineTokenizer();
-		tokenizer.setNames(tokens);
-		
-		defaultLineMapper.setLineTokenizer(tokenizer);
-		defaultLineMapper.setFieldSetMapper(new OrderFieldSetMapper());
-		
-		orderItemReader.setLineMapper(defaultLineMapper);
-		
-		
-		return orderItemReader;
+		return new JdbcCursorItemReaderBuilder<Order>()
+				.dataSource(dataSource)
+				.name("jdbcCursorItemReader")
+				.sql(ORDER_SQL)
+				.rowMapper(new OrderRowMapper())
+				.build();
 	}
 
 	@Bean
