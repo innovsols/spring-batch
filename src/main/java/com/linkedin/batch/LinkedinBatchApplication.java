@@ -1,12 +1,24 @@
 package com.linkedin.batch;
 
+import java.time.LocalDateTime;
+import java.util.Date;
+
 import javax.sql.DataSource;
 
 import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobParametersBuilder;
+import org.springframework.batch.core.JobParametersInvalidException;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
+import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
+import org.springframework.batch.core.repository.JobRestartException;
+import org.springframework.batch.core.scope.context.ChunkContext;
+import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
@@ -16,15 +28,19 @@ import org.springframework.batch.item.database.builder.JdbcPagingItemReaderBuild
 import org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean;
 import org.springframework.batch.item.support.builder.CompositeItemProcessorBuilder;
 import org.springframework.batch.item.validator.BeanValidatingItemProcessor;
+import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 @SpringBootApplication
 @EnableBatchProcessing
+@EnableScheduling
 public class LinkedinBatchApplication {
 	
 	public static String[] names = new String[] {"orderId", "firstName", "lastName", "email", "cost", "itemId","itemName", "shipDate"};
@@ -48,6 +64,29 @@ public class LinkedinBatchApplication {
 	
 	@Autowired
 	public DataSource dataSource;
+	
+	@Autowired
+	public JobLauncher jobLauncher;
+	
+	@Scheduled(cron = "0/30 * * * * *")
+	public void runJob() throws JobExecutionAlreadyRunningException, JobRestartException, JobInstanceAlreadyCompleteException, JobParametersInvalidException, Exception {
+		JobParametersBuilder parametersBuilder = new JobParametersBuilder();
+		parametersBuilder.addDate("runTime", new Date());
+		this.jobLauncher.run(job(), parametersBuilder.toJobParameters());
+	}
+	
+	@Bean
+	public Step step() throws Exception {
+		return this.stepBuilderFactory.get("step").tasklet(new Tasklet() {
+			
+			@Override
+			public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
+				System.out.println("The run time is: " + LocalDateTime.now());
+				return RepeatStatus.FINISHED;
+			}
+		}).build();
+
+	}
 	
 	@Bean
 	public PagingQueryProvider queryProvider() throws Exception {
@@ -143,7 +182,7 @@ public class LinkedinBatchApplication {
 	@Bean
 	public Job job() throws Exception {
 		return this.jobBuilderFactory.get("job")
-				.start(chunkBasedStep())
+				.start(step())
 				.build();
 	}
 
