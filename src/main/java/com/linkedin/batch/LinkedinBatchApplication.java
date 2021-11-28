@@ -8,14 +8,18 @@ import org.springframework.batch.core.configuration.annotation.EnableBatchProces
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JdbcCursorItemReader;
 import org.springframework.batch.item.database.PagingQueryProvider;
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.database.builder.JdbcPagingItemReaderBuilder;
 import org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean;
 import org.springframework.batch.item.file.FlatFileItemReader;
+import org.springframework.batch.item.file.FlatFileItemWriter;
 import org.springframework.batch.item.file.LineMapper;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
+import org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor;
+import org.springframework.batch.item.file.transform.DelimitedLineAggregator;
 import org.springframework.batch.item.file.transform.DelimitedLineTokenizer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -64,26 +68,40 @@ public class LinkedinBatchApplication {
 		
 		return new JdbcPagingItemReaderBuilder<Order>()
 				.dataSource(dataSource)
-				.name("jdbcCursorItemReader")
+				.name("jdbcPagingItemReader")
 				.queryProvider(queryProvider())
 				.rowMapper(new OrderRowMapper())
 				.pageSize(10)
 				.build();
 	}
 
-
+	@Bean
+	public ItemWriter<Order> itemWriter() {
+		FlatFileItemWriter<Order> itemWriter = new FlatFileItemWriter<Order>();
+		itemWriter.setResource(new FileSystemResource("C:\\Gorakh\\Workspaces\\eclipse-workspace\\data\\output\\order_output.csv"));
+		DelimitedLineAggregator<Order> dLineAggregator = new DelimitedLineAggregator<Order>();
+		dLineAggregator.setDelimiter(",");
+		
+		BeanWrapperFieldExtractor<Order> fieldExtractor = new BeanWrapperFieldExtractor<Order>();
+		fieldExtractor.setNames(tokens);
+		
+		dLineAggregator.setFieldExtractor(fieldExtractor);
+		
+		itemWriter.setLineAggregator(dLineAggregator);
+		
+		return itemWriter;
+	}
 
 	@Bean
 	public Step chunkBasedStep() throws Exception {
 		return this.stepBuilderFactory.get("chunkBasedStep")
 				.<Order,Order>chunk(10)
 				.reader(itemReader())
-				.writer(items -> {
-					System.out.println(String.format("Received list of Size : ",items.size()));
-					items.forEach(System.out::println);
-				}).build();
+				.writer(itemWriter()).build();
 	}
 	
+
+
 	@Bean
 	public Job job() throws Exception {
 		return this.jobBuilderFactory.get("job")
