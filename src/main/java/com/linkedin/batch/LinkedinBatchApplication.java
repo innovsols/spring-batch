@@ -127,9 +127,9 @@ public class LinkedinBatchApplication {
 				.reader(itemReader())
 				.processor(compositeItemProcessor())
 				.faultTolerant()
-				.skip(OrderProcessingException.class)
-				.skipLimit(5)
-				.listener(new CustomSkipListener())
+				.retry(OrderProcessingException.class)
+				.retryLimit(3)
+				.listener(new CustomRetryListener())
 				.writer(itemWriter()).build();
 	}
 
